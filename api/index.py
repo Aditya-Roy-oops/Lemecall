@@ -7,10 +7,10 @@ app = Flask(__name__, template_folder='../templates')
 # Initialize Pusher
 # These are pulled from Vercel Environment Variables
 pusher_client = Pusher(
-    app_id=os.environ.get(2093703),
-    key=os.environ.get(c7f2cd8e7835a9dc4425),
+    app_id=os.environ.get('2093703'),
+    key=os.environ.get('c7f2cd8e7835a9dc4425'),
     secret=os.environ.get('22d37c4c1b5c1318c3f2'),
-    cluster=os.environ.get(ap2),
+    cluster=os.environ.get('ap2'),
     ssl=True
 )
 
@@ -26,4 +26,5 @@ def send_signal():
     pusher_client.trigger(f'room-{room_id}', 'new-signal', data)
 
     return jsonify({"status": "success"})
+
 
