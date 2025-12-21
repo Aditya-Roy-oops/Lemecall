@@ -1,10 +1,9 @@
 import os
 from flask import Flask, render_template, request, jsonify
-from pusher import Pusher  # We import the Class directly
+from pusher import Pusher
 
 app = Flask(__name__, template_folder='../templates')
 
-# Initialize Pusher using the class directly
 pusher_client = Pusher(
   app_id='2093703',
   key='c7f2cd8e7835a9dc4425',
@@ -21,12 +20,6 @@ def index():
 def send_signal():
     data = request.json
     room_id = data.get('room')
-    
-    # Safety check: if Pusher isn't initialized or room is missing
-    if not room_id or not pusher_client:
-        return jsonify({"status": "error", "message": "Missing room or config"}), 400
-
-    # Trigger the event to the specific room channel
+    # Broadcast to everyone in the room
     pusher_client.trigger(f'room-{room_id}', 'new-signal', data)
-
     return jsonify({"status": "success"})
