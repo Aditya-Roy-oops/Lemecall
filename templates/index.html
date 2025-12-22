@@ -1,30 +1,30 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Serverless Video Call</title>
+    <title>Reliable Video Call</title>
     <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; background: #1a1a1a; color: white; }
-        .video-box { width: 45%; max-width: 400px; background: #000; border-radius: 10px; }
-        .container { display: flex; gap: 20px; justify-content: center; width: 100%; margin-top: 20px; }
-        .controls { margin-top: 20px; background: #333; padding: 20px; border-radius: 10px; }
-        button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; }
-        #joinBtn { background: #28a745; color: white; }
-        #endBtn { background: #dc3545; color: white; display: none; }
-        input { padding: 10px; border-radius: 5px; border: none; }
+        body { font-family: sans-serif; text-align: center; background: #121212; color: white; }
+        .video-container { display: flex; justify-content: center; gap: 15px; margin-top: 20px; }
+        video { width: 40%; background: #000; border-radius: 10px; border: 2px solid #333; }
+        .controls { background: #1e1e1e; padding: 20px; border-bottom: 2px solid #333; }
+        button { padding: 12px 24px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; }
+        #joinBtn { background: #0070f3; color: white; }
+        #endBtn { background: #ff4d4d; color: white; display: none; }
+        input { padding: 11px; border-radius: 6px; border: 1px solid #444; background: #222; color: white; }
     </style>
 </head>
 <body>
 
     <div class="controls">
-        <input type="text" id="roomInput" placeholder="Room Code (e.g. 123)">
-        <button id="joinBtn">Join Call</button>
-        <button id="endBtn">End Call</button>
-        <p id="status">Status: Offline</p>
+        <input type="text" id="roomInput" placeholder="Room ID">
+        <button id="joinBtn">Start / Join</button>
+        <button id="endBtn">Leave Call</button>
+        <p id="status">Status: Waiting</p>
     </div>
 
-    <div class="container">
-        <video id="localVideo" class="video-box" autoplay muted playsinline></video>
-        <video id="remoteVideo" class="video-box" autoplay playsinline></video>
+    <div class="video-container">
+        <video id="localVideo" autoplay muted playsinline></video>
+        <video id="remoteVideo" autoplay playsinline></video>
     </div>
 
     <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
@@ -36,54 +36,66 @@
         const pusher = new Pusher(PUSHER_KEY, { cluster: PUSHER_CLUSTER });
         const iceConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
+        async function cleanup() {
+            if (pc) {
+                pc.close();
+                pc = null;
+            }
+            if (channel) {
+                pusher.unsubscribe(`room-${roomId}`);
+            }
+            document.getElementById('remoteVideo').srcObject = null;
+        }
+
         document.getElementById('joinBtn').onclick = async () => {
             roomId = document.getElementById('roomInput').value;
-            if (!roomId) return alert("Enter a room code");
+            if (!roomId) return alert("Enter Room ID");
 
-            document.getElementById('status').innerText = "Connecting...";
+            await cleanup(); // Clear any old junk connection
             
-            // 1. Setup Local Media
-            localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
-            document.getElementById('localVideo').srcObject = localStream;
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
+                document.getElementById('localVideo').srcObject = localStream;
+                document.getElementById('status').innerText = "Joining Room...";
 
-            // 2. Initialize Connection
-            initPeerConnection();
+                initPeerConnection();
+                
+                channel = pusher.subscribe(`room-${roomId}`);
+                channel.bind('new-signal', async (data) => {
+                    if (data.sender === pusher.connection.socket_id) return;
 
-            // 3. Join Pusher Room
-            channel = pusher.subscribe(`room-${roomId}`);
-            
-            channel.bind('new-signal', async (data) => {
-                if (data.sender === pusher.connection.socket_id) return;
+                    if (data.type === 'ready') {
+                        // A new user is ready, so we (the existing user) create the offer
+                        const offer = await pc.createOffer();
+                        await pc.setLocalDescription(offer);
+                        sendSignal(offer);
+                    } else if (data.type === 'offer') {
+                        await pc.setRemoteDescription(new RTCSessionDescription(data));
+                        const answer = await pc.createAnswer();
+                        await pc.setLocalDescription(answer);
+                        sendSignal(answer);
+                    } else if (data.type === 'answer') {
+                        await pc.setRemoteDescription(new RTCSessionDescription(data));
+                    } else if (data.candidate) {
+                        try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch(e) {}
+                    }
+                });
 
-                if (data.type === 'ready') {
-                    // Someone else joined! Create the offer.
-                    const offer = await pc.createOffer();
-                    await pc.setLocalDescription(offer);
-                    sendSignal(offer);
-                } else if (data.type === 'offer') {
-                    await pc.setRemoteDescription(new RTCSessionDescription(data));
-                    const answer = await pc.createAnswer();
-                    await pc.setLocalDescription(answer);
-                    sendSignal(answer);
-                } else if (data.type === 'answer') {
-                    await pc.setRemoteDescription(new RTCSessionDescription(data));
-                } else if (data.candidate) {
-                    try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch(e) {}
-                } else if (data.type === 'end') {
-                    handleRemoteHangup();
-                }
-            });
+                // Crucial: Tell the room we are ready to start
+                setTimeout(() => sendSignal({ type: 'ready' }), 1000);
 
-            // 4. Tell everyone we are ready to receive an offer
-            sendSignal({ type: 'ready' });
+                document.getElementById('joinBtn').style.display = 'none';
+                document.getElementById('endBtn').style.display = 'inline-block';
+                document.getElementById('status').innerText = "In Room: " + roomId;
 
-            document.getElementById('joinBtn').style.display = 'none';
-            document.getElementById('endBtn').style.display = 'inline-block';
-            document.getElementById('status').innerText = "In Room: " + roomId;
+            } catch (err) {
+                alert("Could not access camera: " + err);
+            }
         };
 
         function initPeerConnection() {
             pc = new RTCPeerConnection(iceConfig);
+            
             localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
 
             pc.ontrack = (event) => {
@@ -92,6 +104,14 @@
 
             pc.onicecandidate = (event) => {
                 if (event.candidate) sendSignal({ candidate: event.candidate });
+            };
+
+            // Watch for disconnection
+            pc.oniceconnectionstatechange = () => {
+                if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+                    document.getElementById('status').innerText = "Partner left.";
+                    document.getElementById('remoteVideo').srcObject = null;
+                }
             };
         }
 
@@ -104,16 +124,8 @@
         }
 
         document.getElementById('endBtn').onclick = () => {
-            sendSignal({ type: 'end' });
-            location.reload(); // Refresh to reset state
+            location.reload(); // Hard reset for the next run
         };
-
-        function handleRemoteHangup() {
-            document.getElementById('remoteVideo').srcObject = null;
-            document.getElementById('status').innerText = "Partner disconnected.";
-            if(pc) pc.close();
-            initPeerConnection(); // Prepare for next join
-        }
     </script>
 </body>
 </html>
