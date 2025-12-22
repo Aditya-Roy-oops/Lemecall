@@ -3,81 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pro Video Call - Serverless</title>
+    <title>Reliable Video Call</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #0f0f0f; color: white; margin: 0; display: flex; flex-direction: column; align-items: center; height: 100vh; }
-        .header { padding: 20px; text-align: center; width: 100%; background: #1a1a1a; box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
-        .video-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 90%; max-width: 1000px; margin-top: 20px; }
-        video { width: 100%; border-radius: 12px; background: #252525; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border: 2px solid #333; height: 350px; object-fit: cover; }
-        .controls { margin-top: 20px; display: flex; gap: 10px; }
-        input { padding: 12px; border-radius: 8px; border: none; background: #333; color: white; width: 200px; }
-        button { padding: 12px 24px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        #joinBtn { background: #0070f3; color: white; }
-        #endBtn { background: #ff4d4d; color: white; display: none; }
-        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; background: gray; margin-right: 5px; }
-        #statusText { color: #aaa; font-size: 0.9em; }
+        body { font-family: 'Inter', sans-serif; background: #121212; color: white; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; }
+        .video-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; width: 90%; margin-top: 20px; }
+        video { width: 100%; border-radius: 15px; background: #000; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .ui-panel { margin-top: 30px; background: #1e1e1e; padding: 20px; border-radius: 12px; border: 1px solid #333; }
+        input { padding: 12px; border-radius: 8px; border: none; background: #2a2a2a; color: white; margin-right: 10px; }
+        button { padding: 12px 24px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; }
+        .btn-join { background: #0070f3; color: white; }
+        .btn-end { background: #ff4d4d; color: white; display: none; }
+        #status { margin-top: 15px; color: #888; font-size: 0.9em; }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <h2>🚀 High-Speed Video Call</h2>
-        <div id="statusContainer">
-            <span id="statusDot" class="status-dot"></span>
-            <span id="statusText">Disconnected</span>
-        </div>
+    <div class="ui-panel">
+        <input type="text" id="roomInput" placeholder="Enter Room ID">
+        <button id="joinBtn" class="btn-join">Join Room</button>
+        <button id="endBtn" class="btn-end">End Call</button>
+        <div id="status">Status: Waiting to start...</div>
     </div>
 
-    <div class="video-grid">
-        <div>
-            <p style="text-align:center">Local (You)</p>
-            <video id="localVideo" autoplay muted playsinline></video>
-        </div>
-        <div>
-            <p style="text-align:center">Remote (Partner)</p>
-            <video id="remoteVideo" autoplay playsinline></video>
-        </div>
-    </div>
-
-    <div class="controls">
-        <input type="text" id="roomInput" placeholder="Room ID (e.g. secret123)">
-        <button id="joinBtn">Start Call</button>
-        <button id="endBtn">End Call</button>
+    <div class="video-container">
+        <video id="localVideo" autoplay muted playsinline></video>
+        <video id="remoteVideo" autoplay playsinline></video>
     </div>
 
     <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
     <script>
         const PUSHER_KEY = 'c7f2cd8e7835a9dc4425';
         const PUSHER_CLUSTER = 'ap2';
-        
         let localStream, pc, roomId, channel;
+
         const pusher = new Pusher(PUSHER_KEY, { cluster: PUSHER_CLUSTER });
         
-        // Comprehensive ICE Servers (STUN)
+        // Updated ICE Servers with more global STUNs
         const iceConfig = { 
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' }
-            ] 
-        };
-
-        const updateStatus = (text, color) => {
-            document.getElementById('statusText').innerText = text;
-            document.getElementById('statusDot').style.background = color;
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' }
+            ],
+            iceCandidatePoolSize: 10
         };
 
         document.getElementById('joinBtn').onclick = async () => {
             roomId = document.getElementById('roomInput').value;
-            if (!roomId) return alert("Enter Room ID");
+            if (!roomId) return alert("Please enter a Room ID");
 
-            updateStatus("Initializing Camera...", "yellow");
+            document.getElementById('status').innerText = "Status: Initializing Media...";
             
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                // Higher quality constraints for better "real" feel
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+                    audio: true
+                });
                 document.getElementById('localVideo').srcObject = localStream;
-            } catch (e) {
-                alert("Could not access camera/mic. Ensure you are on HTTPS.");
+            } catch (err) {
+                alert("Camera error: " + err.message);
                 return;
             }
 
@@ -88,52 +75,55 @@
                 if (data.sender === pusher.connection.socket_id) return;
 
                 if (data.type === 'ready') {
-                    // New person joined, send them an offer
                     const offer = await pc.createOffer();
                     await pc.setLocalDescription(offer);
                     sendSignal(offer);
-                    updateStatus("Calling...", "blue");
                 } else if (data.type === 'offer') {
                     await pc.setRemoteDescription(new RTCSessionDescription(data));
                     const answer = await pc.createAnswer();
                     await pc.setLocalDescription(answer);
                     sendSignal(answer);
-                    updateStatus("Connecting...", "blue");
                 } else if (data.type === 'answer') {
                     await pc.setRemoteDescription(new RTCSessionDescription(data));
                 } else if (data.candidate) {
                     try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch(e) {}
                 } else if (data.type === 'end') {
-                    window.location.reload(); 
+                    location.reload();
                 }
             });
 
-            // Trigger the "Ready" signal
             sendSignal({ type: 'ready' });
-
             document.getElementById('joinBtn').style.display = 'none';
             document.getElementById('endBtn').style.display = 'inline-block';
-            updateStatus("Waiting for Partner...", "orange");
+            document.getElementById('status').innerText = "Status: Waiting for partner...";
         };
 
         function initPeerConnection() {
             pc = new RTCPeerConnection(iceConfig);
             
+            // Add tracks to the connection
             localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
 
+            // CRITICAL: This is what catches the remote video
             pc.ontrack = (event) => {
-                document.getElementById('remoteVideo').srcObject = event.streams[0];
-                updateStatus("Connected (Live)", "green");
+                const remoteVid = document.getElementById('remoteVideo');
+                if (remoteVid.srcObject !== event.streams[0]) {
+                    remoteVid.srcObject = event.streams[0];
+                    document.getElementById('status').innerText = "Status: Live!";
+                }
             };
 
             pc.onicecandidate = (event) => {
                 if (event.candidate) sendSignal({ candidate: event.candidate });
             };
 
-            // Watch for connection drops
+            // Watch for connection state
             pc.onconnectionstatechange = () => {
-                if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-                    updateStatus("Partner Disconnected", "red");
+                if (pc.connectionState === 'connected') {
+                    document.getElementById('status').innerText = "Status: Handshake Success!";
+                }
+                if (pc.connectionState === 'failed') {
+                    document.getElementById('status').innerText = "Status: Connection Failed (Firewall issues)";
                 }
             };
         }
@@ -148,7 +138,7 @@
 
         document.getElementById('endBtn').onclick = () => {
             sendSignal({ type: 'end' });
-            window.location.reload();
+            location.reload();
         };
     </script>
 </body>
