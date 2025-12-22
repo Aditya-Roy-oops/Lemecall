@@ -20,6 +20,5 @@ def index():
 def send_signal():
     data = request.json
     room_id = data.get('room')
-    # Broadcast to everyone in the room
     pusher_client.trigger(f'room-{room_id}', 'new-signal', data)
     return jsonify({"status": "success"})
