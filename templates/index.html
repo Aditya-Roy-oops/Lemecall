@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>LeMeCall Pro</title>
+    <title>GlassCall Pro</title>
     <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
     <style>
         :root {
@@ -20,7 +20,7 @@
             color: white; overflow: hidden;
         }
 
-        /* Lobby */
+        /* --- LOBBY UI --- */
         #lobby {
             position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
             background: radial-gradient(circle, #1e293b, #0f172a); z-index: 1000;
@@ -32,7 +32,7 @@
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
         }
 
-        /* Meeting UI */
+        /* --- MEETING UI --- */
         #meeting-ui { display: none; width: 100%; height: 100%; position: relative; }
 
         /* Navbar */
@@ -43,8 +43,8 @@
             display: flex; align-items: center; justify-content: space-between;
             padding: 0 20px; z-index: 800;
         }
-        .session-info { font-size: 14px; letter-spacing: 0.5px; color: #cbd5e1; display: flex; align-items: center; gap: 5px;}
-        .session-code { color: var(--accent); font-weight: bold; }
+        .session-info { font-size: 14px; letter-spacing: 0.5px; color: #cbd5e1; }
+        .session-code { color: var(--accent); font-weight: bold; margin-left: 5px; }
 
         /* Draggable Local Video */
         #local-container {
@@ -52,55 +52,48 @@
             top: 80px; right: 20px; z-index: 500; cursor: move;
             border-radius: 16px; overflow: hidden; border: 2px solid var(--glass-thick);
             box-shadow: 0 10px 30px rgba(0,0,0,0.5); touch-action: none;
-            transition: transform 0.05s linear;
         }
         #localVideo { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
 
-        /* Main Video Area - Centralized */
+        /* --- STAGE (REMOTE VIDEO) --- */
+        /* FIX: Made stage fill the entire screen and centered the video */
         .stage { 
-            width: 100%; height: 100%; background: #000; 
-            display: flex; align-items: center; justify-content: center; 
-            padding-top: 60px;
+            width: 100%; height: 100vh; background: #000; 
+            display: flex; align-items: center; justify-content: center;
         }
         #remoteVideo { 
-            max-width: 100%; max-height: 100%; 
-            width: auto; height: auto; 
-            object-fit: contain; 
-            box-shadow: 0 0 100px rgba(0, 242, 254, 0.05);
+            width: 100%; height: 100%; 
+            object-fit: cover; /* Change to cover to fill screen, or contain to see full frame */
+            transition: all 0.3s ease;
         }
 
-        /* Glass Controls Bar */
+        /* Controls */
         .controls {
             position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-            display: flex; gap: 15px; padding: 12px 25px;
-            background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(25px);
+            display: flex; gap: 12px; padding: 12px 25px;
+            background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(20px);
             border-radius: 40px; border: 1px solid var(--glass-thick); z-index: 600;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
         }
         .btn {
-            width: 50px; height: 50px; border-radius: 50%; border: none;
+            width: 48px; height: 48px; border-radius: 50%; border: none;
             cursor: pointer; font-size: 20px; background: var(--glass-thick); color: white;
-            transition: all 0.2s ease; display: flex; align-items: center; justify-content: center;
+            transition: 0.3s; display: flex; align-items: center; justify-content: center;
         }
-        .btn:hover { background: var(--glass); transform: translateY(-2px); }
+        .btn:hover { background: var(--glass); transform: scale(1.1); }
         .btn.off { background: var(--danger); }
 
         /* Chat Window */
         #chat-window {
-            position: fixed; right: 20px; bottom: 100px; width: 320px; height: 450px;
+            position: fixed; right: 20px; bottom: 100px; width: 320px; height: 400px;
             background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(25px);
             border-radius: 24px; border: 1px solid var(--glass-thick);
             display: none; flex-direction: column; z-index: 700;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
         }
         #chat-body { flex: 1; padding: 15px; overflow-y: auto; scroll-behavior: smooth; }
-        .chat-input-container { padding: 15px; border-top: 1px solid var(--glass-thick); display: flex; gap: 8px; }
 
         @media (max-width: 768px) {
-            #local-container { width: 140px; top: 70px; right: 10px;}
-            .controls { bottom: 20px; width: 95%; justify-content: space-around; padding: 10px; gap: 5px;}
-            .btn { width: 45px; height: 45px; font-size: 18px; }
-            #chat-window { width: calc(100% - 20px); right: 10px; bottom: 85px; height: 50vh; }
+            #local-container { width: 120px; }
+            .controls { bottom: 20px; width: 95%; justify-content: space-around; }
         }
     </style>
 </head>
@@ -109,21 +102,16 @@
     <div id="lobby">
         <div class="lobby-card">
             <h1 style="margin: 0 0 10px 0;">GlassCall</h1>
-            <p style="opacity: 0.7; font-size: 14px;">Enter a meeting code to get started</p>
-            <input type="text" id="roomInput" placeholder="Meeting Code" style="width:100%; padding:15px; border-radius:12px; border:1px solid var(--glass-thick); background:rgba(0,0,0,0.3); color:white; margin: 20px 0; outline: none;">
+            <input type="text" id="roomInput" placeholder="Meeting Code" style="width:100%; padding:15px; border-radius:12px; border:none; background:rgba(255,255,255,0.05); color:white; margin: 20px 0; border: 1px solid var(--glass-thick);">
             <button id="joinBtn" style="width:100%; padding:15px; border-radius:12px; background:var(--accent); color:#000; font-weight:bold; border:none; cursor:pointer;">Join Meeting</button>
         </div>
     </div>
 
     <div id="meeting-ui">
         <nav class="navbar">
-            <div class="session-info">
-                <span>Room:</span> <span id="display-room-id" class="session-code"></span>
-            </div>
-            <div style="font-weight: 800; font-size: 20px; letter-spacing: 1px; color: white;">GlassCall<span style="color:var(--accent)">.</span></div>
-            <div style="width: 100px; display: flex; justify-content: flex-end;">
-                <button id="pipBtn" class="btn" style="width: 35px; height: 35px; font-size: 14px; background: var(--glass);" title="Picture-in-Picture">🖼️</button>
-            </div>
+            <div class="session-info">Code: <span id="display-room-id" class="session-code"></span></div>
+            <div style="font-weight: 800; font-size: 20px; color: var(--accent);">GlassCall</div>
+            <button id="pipBtn" class="btn" style="width: 35px; height: 35px; font-size: 14px;" title="Picture in Picture">🖼️</button>
         </nav>
 
         <div id="local-container">
@@ -135,22 +123,22 @@
         </div>
 
         <div class="controls">
-            <button onclick="toggleMic()" id="micBtn" class="btn" title="Toggle Microphone">🎤</button>
-            <button onclick="toggleCam()" id="camBtn" class="btn" title="Toggle Camera">📷</button>
-            <button onclick="toggleShare()" id="shareBtn" class="btn" title="Share Screen">📺</button>
-            <button onclick="toggleChat()" class="btn" title="Chat">💬</button>
-            <button onclick="location.reload()" class="btn" style="background:var(--danger)" title="End Call">📞</button>
+            <button onclick="toggleMic()" id="micBtn" class="btn">🎤</button>
+            <button onclick="toggleCam()" id="camBtn" class="btn">📷</button>
+            <button onclick="toggleShare()" id="shareBtn" class="btn">📺</button>
+            <button onclick="toggleChat()" class="btn">💬</button>
+            <button onclick="location.reload()" class="btn" style="background:var(--danger)">📞</button>
         </div>
 
         <div id="chat-window">
             <div style="padding:15px; border-bottom:1px solid var(--glass-thick); display:flex; justify-content:space-between; align-items: center;">
-                <b style="font-size: 14px; letter-spacing: 1px;">LIVE CHAT</b>
-                <button onclick="toggleChat()" style="background:none; border:none; color:white; cursor:pointer; font-size: 18px;">✕</button>
+                <b style="font-size: 14px;">LIVE CHAT</b>
+                <button onclick="toggleChat()" style="background:none; border:none; color:white; cursor:pointer; font-size: 20px;">✕</button>
             </div>
             <div id="chat-body"></div>
-            <div class="chat-input-container">
-                <input type="text" id="chatMsg" placeholder="Type a message..." style="flex:1; background:rgba(255,255,255,0.05); border:1px solid var(--glass-thick); color:white; border-radius:10px; padding:10px; outline: none;">
-                <button onclick="sendChat()" style="background:var(--accent); border:none; border-radius:10px; padding:0 15px; font-size: 18px; cursor: pointer;">➤</button>
+            <div style="padding:15px; display:flex; gap:8px; border-top: 1px solid var(--glass-thick);">
+                <input type="text" id="chatMsg" placeholder="Message..." style="flex:1; background:var(--glass); border:none; color:white; border-radius:10px; padding:10px; outline: none;">
+                <button onclick="sendChat()" style="background:var(--accent); border:none; border-radius:10px; padding:0 15px; cursor:pointer;">➤</button>
             </div>
         </div>
     </div>
@@ -187,14 +175,16 @@
         document.addEventListener("touchstart", dragStart, {passive: false});
         document.addEventListener("touchend", dragEnd, {passive: false});
         document.addEventListener("touchmove", drag, {passive: false});
-        document.addEventListener("mousedown", dragStart);
-        document.addEventListener("mouseup", dragEnd);
-        document.addEventListener("mousemove", drag);
+        document.addEventListener("mousedown", dragStart, false);
+        document.addEventListener("mouseup", dragEnd, false);
+        document.addEventListener("mousemove", drag, false);
 
-        // --- PIP LOGIC ---
+        // --- PIP & CHAT LOGIC ---
         const pipBtn = document.getElementById('pipBtn');
         const remoteVideo = document.getElementById('remoteVideo');
+        const chatInput = document.getElementById('chatMsg');
 
+        // Toggle Picture-in-Picture
         pipBtn.onclick = async () => {
             try {
                 if (document.pictureInPictureElement) {
@@ -202,18 +192,12 @@
                 } else {
                     await remoteVideo.requestPictureInPicture();
                 }
-            } catch (error) {
-                console.error("PiP Error:", error);
-                alert("Picture-in-Picture is not supported or failed.");
-            }
+            } catch (err) { alert("PiP not supported on this browser"); }
         };
 
-        // --- CHAT ENTER LOGIC ---
-        const chatInput = document.getElementById('chatMsg');
+        // Enter to send chat
         chatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                sendChat();
-            }
+            if (e.key === 'Enter') sendChat();
         });
 
         // --- WebRTC & Pusher Logic ---
@@ -229,40 +213,34 @@
             document.getElementById('meeting-ui').style.display = 'block';
             document.getElementById('display-room-id').innerText = roomId;
 
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
-                document.getElementById('localVideo').srcObject = localStream;
+            localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
+            document.getElementById('localVideo').srcObject = localStream;
 
-                pc = new RTCPeerConnection(iceConfig);
-                localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-                pc.ontrack = e => document.getElementById('remoteVideo').srcObject = e.streams[0];
-                pc.onicecandidate = e => e.candidate && sendSig({candidate: e.candidate});
+            pc = new RTCPeerConnection(iceConfig);
+            localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+            pc.ontrack = e => document.getElementById('remoteVideo').srcObject = e.streams[0];
+            pc.onicecandidate = e => e.candidate && sendSig({candidate: e.candidate});
 
-                channel = pusher.subscribe(`room-${roomId}`);
-                channel.bind('new-signal', async d => {
-                    if(d.sender === pusher.connection.socket_id) return;
-                    if(d.type === 'ready') { const o = await pc.createOffer(); await pc.setLocalDescription(o); sendSig(o); }
-                    else if(d.type === 'offer') { await pc.setRemoteDescription(new RTCSessionDescription(d)); const a = await pc.createAnswer(); await pc.setLocalDescription(a); sendSig(a); }
-                    else if(d.type === 'answer') await pc.setRemoteDescription(new RTCSessionDescription(d));
-                    else if(d.candidate) pc.addIceCandidate(new RTCIceCandidate(d.candidate));
-                });
-                channel.bind('new-chat', d => {
-                    const b = document.getElementById('chat-body');
-                    const isSelf = d.sender_id === pusher.connection.socket_id;
-                    b.innerHTML += `
-                        <div style="margin-bottom:10px; text-align: ${isSelf ? 'right' : 'left'}">
-                            <span style="display:inline-block; background:${isSelf ? 'var(--accent)' : 'var(--glass)'}; color:${isSelf ? '#000' : '#fff'}; padding:8px 12px; border-radius:12px; font-size:14px; max-width: 80%;">
-                                ${d.msg}
-                            </span>
-                        </div>`;
-                    b.scrollTop = b.scrollHeight;
-                });
-                sendSig({type:'ready'});
-            } catch(e) {
-                console.error(e);
-                alert("Camera access denied or error occurred.");
-                location.reload();
-            }
+            channel = pusher.subscribe(`room-${roomId}`);
+            channel.bind('new-signal', async d => {
+                if(d.sender === pusher.connection.socket_id) return;
+                if(d.type === 'ready') { const o = await pc.createOffer(); await pc.setLocalDescription(o); sendSig(o); }
+                else if(d.type === 'offer') { await pc.setRemoteDescription(new RTCSessionDescription(d)); const a = await pc.createAnswer(); await pc.setLocalDescription(a); sendSig(a); }
+                else if(d.type === 'answer') await pc.setRemoteDescription(new RTCSessionDescription(d));
+                else if(d.candidate) pc.addIceCandidate(new RTCIceCandidate(d.candidate));
+            });
+            channel.bind('new-chat', d => {
+                const b = document.getElementById('chat-body');
+                const isSelf = d.sender_id === pusher.connection.socket_id;
+                b.innerHTML += `
+                    <div style="margin-bottom:10px; text-align: ${isSelf ? 'right' : 'left'}">
+                        <span style="display:inline-block; background:${isSelf ? 'var(--accent)' : 'var(--glass)'}; color:${isSelf ? '#000' : '#fff'}; padding:8px 12px; border-radius:12px; font-size:14px; max-width: 80%;">
+                            ${d.msg}
+                        </span>
+                    </div>`;
+                b.scrollTop = b.scrollHeight;
+            });
+            sendSig({type:'ready'});
         };
 
         async function sendSig(d) { fetch('/send-signal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({...d, room:roomId, sender:pusher.connection.socket_id})}); }
@@ -276,7 +254,11 @@
 
         function toggleMic() { const t = localStream.getAudioTracks()[0]; t.enabled = !t.enabled; document.getElementById('micBtn').classList.toggle('off', !t.enabled); }
         function toggleCam() { const t = localStream.getVideoTracks()[0]; t.enabled = !t.enabled; document.getElementById('camBtn').classList.toggle('off', !t.enabled); }
-        function toggleChat() { const w = document.getElementById('chat-window'); w.style.display = w.style.display === 'flex' ? 'none' : 'flex'; if(w.style.display === 'flex') document.getElementById('chatMsg').focus(); }
+        function toggleChat() { 
+            const w = document.getElementById('chat-window'); 
+            w.style.display = w.style.display === 'flex' ? 'none' : 'flex'; 
+            if(w.style.display === 'flex') document.getElementById('chatMsg').focus();
+        }
         
         async function toggleShare() {
             if(!screenStream) {
@@ -288,7 +270,7 @@
                     vt.onended = stopShare;
                     document.getElementById('shareBtn').classList.add('off');
                     document.getElementById('localVideo').srcObject = screenStream;
-                } catch (e) { console.error("Screen share error:", e); }
+                } catch (e) { console.error(e); }
             } else { stopShare(); }
         }
 
